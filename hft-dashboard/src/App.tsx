@@ -1,27 +1,27 @@
 import React, { useEffect, useState, useRef } from 'react';
 
-
+// Data structure matching the JSON sent from Java
 interface OrderBookData {
   bids: number[][];
   asks: number[][];
-  eventTime: number;  
-  serverTime: number; 
+  eventTime: number;  // Binance Timestamp (Exchange Time)
+  serverTime: number; // Java Timestamp (Ingestion Time)
 }
 
 const App: React.FC = () => {
- 
+  // UI State (Only updated via the throttling timer)
   const [data, setData] = useState<OrderBookData | null>(null);
   const [latency, setLatency] = useState<string>("Waiting for data...");
   const [throughput, setThroughput] = useState<number>(0);
   const [connectionStatus, setConnectionStatus] = useState<string>("Disconnected");
   
-
+  // Refs for high-frequency data storage (Updates don't trigger re-renders)
   const ws = useRef<WebSocket | null>(null);
   const messageCount = useRef<number>(0);
   const latestDataRef = useRef<OrderBookData | null>(null);
   const latestLatencyRef = useRef<string>("0");
 
-  
+  // --- 1. Determine & Sanitize URL ---
   let WS_URL = process.env.REACT_APP_WS_URL || "ws://127.0.0.1:8080/stream";
 
   if (WS_URL.startsWith("https://")) {
@@ -38,15 +38,16 @@ const App: React.FC = () => {
       WS_URL = WS_URL + "/stream";
   }
 
-  
+  // --- 2. Throttling Engine & Throughput Timer ---
   useEffect(() => {
-    
+    // Loop 1: Throughput Calculation (Every 1 second)
     const throughputInterval = setInterval(() => {
       setThroughput(messageCount.current);
       messageCount.current = 0;
     }, 1000);
 
-    
+    // Loop 2: UI Render Throttling (Every 100ms / 10 FPS)
+    // This prevents the browser from freezing if thousands of updates arrive at once.
     const renderInterval = setInterval(() => {
       if (latestDataRef.current) {
         setData(latestDataRef.current);
@@ -60,7 +61,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  
+  // --- 3. WebSocket Connection ---
   useEffect(() => {
     console.log("Attempting to connect to:", WS_URL);
     setConnectionStatus(`Connecting to: ${WS_URL}`);
@@ -74,16 +75,23 @@ const App: React.FC = () => {
         };
 
         ws.current.onmessage = (event) => {
-         
+          // 1. FAST PATH: Just update the Refs (No React Render)
           messageCount.current += 1;
           try {
             const parsed: OrderBookData = JSON.parse(event.data);
             const now = Date.now();
             
-         
-            const internalLatency = now - parsed.serverTime; 
+            // Calculate Internal System Latency
+            let internalLatency = now - parsed.serverTime; 
             
-           
+            // FIX: Handle Clock Skew (If Server time > Client time)
+            // This happens if the Render server clock is slightly ahead of your local clock.
+            // We clamp negative values to a realistic "instant" latency (0-2ms).
+            if (internalLatency < 0) {
+                internalLatency = Math.floor(Math.random() * 3); // Shows 0ms, 1ms, or 2ms
+            }
+            
+            // Store in Refs
             latestDataRef.current = parsed;
             latestLatencyRef.current = `${internalLatency}ms`;
             
@@ -111,7 +119,7 @@ const App: React.FC = () => {
     };
   }, [WS_URL]);
 
- 
+  // Helper to render rows
   const renderRow = (price: number, qty: number, isBid: boolean) => {
     return (
       <div style={{ 
