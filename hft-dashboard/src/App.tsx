@@ -9,42 +9,55 @@ interface OrderBookData {
 }
 
 const App: React.FC = () => {
+ 
   const [data, setData] = useState<OrderBookData | null>(null);
   const [latency, setLatency] = useState<string>("Waiting for data...");
   const [throughput, setThroughput] = useState<number>(0);
   const [connectionStatus, setConnectionStatus] = useState<string>("Disconnected");
   
-  
+
   const ws = useRef<WebSocket | null>(null);
   const messageCount = useRef<number>(0);
+  const latestDataRef = useRef<OrderBookData | null>(null);
+  const latestLatencyRef = useRef<string>("0");
 
   
   let WS_URL = process.env.REACT_APP_WS_URL || "ws://127.0.0.1:8080/stream";
 
-  
   if (WS_URL.startsWith("https://")) {
       WS_URL = WS_URL.replace("https://", "wss://");
   } else if (WS_URL.startsWith("http://")) {
       WS_URL = WS_URL.replace("http://", "ws://");
   }
 
- 
   if (WS_URL.endsWith("/")) {
       WS_URL = WS_URL.slice(0, -1);
   }
 
- 
   if (!WS_URL.endsWith("/stream")) {
       WS_URL = WS_URL + "/stream";
   }
 
- 
+  
   useEffect(() => {
-    const interval = setInterval(() => {
+    
+    const throughputInterval = setInterval(() => {
       setThroughput(messageCount.current);
       messageCount.current = 0;
     }, 1000);
-    return () => clearInterval(interval);
+
+    
+    const renderInterval = setInterval(() => {
+      if (latestDataRef.current) {
+        setData(latestDataRef.current);
+        setLatency(latestLatencyRef.current);
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(throughputInterval);
+      clearInterval(renderInterval);
+    };
   }, []);
 
   
@@ -61,16 +74,19 @@ const App: React.FC = () => {
         };
 
         ws.current.onmessage = (event) => {
+         
           messageCount.current += 1;
           try {
             const parsed: OrderBookData = JSON.parse(event.data);
             const now = Date.now();
             
-          
+         
             const internalLatency = now - parsed.serverTime; 
             
-            setData(parsed);
-            setLatency(`${internalLatency}ms`);
+           
+            latestDataRef.current = parsed;
+            latestLatencyRef.current = `${internalLatency}ms`;
+            
           } catch (err) {
             console.error("Parse error:", err);
           }
@@ -95,7 +111,7 @@ const App: React.FC = () => {
     };
   }, [WS_URL]);
 
-  
+ 
   const renderRow = (price: number, qty: number, isBid: boolean) => {
     return (
       <div style={{ 
