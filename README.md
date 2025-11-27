@@ -1,8 +1,8 @@
 
 # ⚡ High-Frequency Trading (HFT) Low-Latency Execution Monitor
 
-![Dashboard Screenshot](./screenshot.png)  
-<!-- Replace with your actual dashboard screenshot -->
+  
+https://github.com/user-attachments/assets/005e9683-2803-44af-9a15-cf8bff9a0142
 
 A high-performance market-data adapter and real-time visualization engine that ingests live crypto order-book updates, processes them in an in-memory Java backend, and streams them to a React dashboard with **sub-15ms internal latency**.
 
