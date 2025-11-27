@@ -17,6 +17,9 @@ public class BinanceConnector implements CommandLineRunner, WebSocket.Listener {
     private final OrderBook orderBook;
     private final UIBridge uiBridge;
     private final CountDownLatch latch = new CountDownLatch(1);
+    
+    // Buffer to handle fragmented messages (Large JSON payloads)
+    private final StringBuilder messageBuffer = new StringBuilder();
 
     public BinanceConnector(OrderBook orderBook, UIBridge uiBridge) {
         this.orderBook = orderBook;
@@ -28,11 +31,10 @@ public class BinanceConnector implements CommandLineRunner, WebSocket.Listener {
         try {
             HttpClient client = HttpClient.newHttpClient();
             
-            // 🚀 PRODUCTION URL (Works in Singapore/Tokyo/Europe)
-            // This is the real, high-performance feed used by HFTs.
+            // Production Stream
             String url = "wss://stream.binance.com:9443/ws/btcusdt@depth@100ms"; 
             
-            System.out.println("🔄 Connecting to PRODUCTION Binance Stream: " + url);
+            System.out.println("🔄 Connecting to Binance Stream: " + url);
 
             client.newWebSocketBuilder()
                   .buildAsync(URI.create(url), this)
@@ -49,8 +51,22 @@ public class BinanceConnector implements CommandLineRunner, WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+        // 1. Append incoming chunk to buffer
+        messageBuffer.append(data);
+
+        // 2. If this is NOT the last chunk, request more and wait
+        if (!last) {
+            webSocket.request(1);
+            return null;
+        }
+
+        // 3. Complete message received -> Process it
+        String fullMessage = messageBuffer.toString();
+        // Clear buffer for next message immediately
+        messageBuffer.setLength(0);
+
         try {
-            JSONObject json = new JSONObject(data.toString());
+            JSONObject json = new JSONObject(fullMessage);
             
             if (!json.has("b") || !json.has("a")) {
                 webSocket.request(1);
@@ -67,7 +83,7 @@ public class BinanceConnector implements CommandLineRunner, WebSocket.Listener {
 
             long duration = System.nanoTime() - startTime;
             
-            // Only log meaningful spikes (>100µs) to keep logs clean in production
+            // Log latency spikes (>100µs)
             if (duration > 100_000) { 
                  System.out.println("⚠️ High Latency Tick: " + (duration / 1000) + " µs");
             }
