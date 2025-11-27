@@ -10,172 +10,156 @@ interface OrderBookData {
 
 const App: React.FC = () => {
   const [data, setData] = useState<OrderBookData | null>(null);
-  const [latency, setLatency] = useState<string>("0");
-  const [throughput, setThroughput] = useState<number>(0); 
+  const [latency, setLatency] = useState<string>("Waiting for data...");
+  const [throughput, setThroughput] = useState<number>(0);
+  const [connectionStatus, setConnectionStatus] = useState<string>("Disconnected");
   
- 
+  
   const ws = useRef<WebSocket | null>(null);
-  const messageCount = useRef<number>(0); 
+  const messageCount = useRef<number>(0);
 
   
+  let WS_URL = process.env.REACT_APP_WS_URL || "ws://127.0.0.1:8080/stream";
+
+  
+  if (WS_URL.startsWith("https://")) {
+      WS_URL = WS_URL.replace("https://", "wss://");
+  } else if (WS_URL.startsWith("http://")) {
+      WS_URL = WS_URL.replace("http://", "ws://");
+  }
+
+ 
+  if (WS_URL.endsWith("/")) {
+      WS_URL = WS_URL.slice(0, -1);
+  }
+
+ 
+  if (!WS_URL.endsWith("/stream")) {
+      WS_URL = WS_URL + "/stream";
+  }
+
+ 
   useEffect(() => {
     const interval = setInterval(() => {
-      setThroughput(messageCount.current); 
-      messageCount.current = 0;            
+      setThroughput(messageCount.current);
+      messageCount.current = 0;
     }, 1000);
-
     return () => clearInterval(interval);
   }, []);
 
   
   useEffect(() => {
-    const WS_URL = process.env.REACT_APP_WS_URL || "ws://127.0.0.1:8080/stream";
-    
-    console.log("Connecting to Backend at:", WS_URL);
-    
-    ws.current = new WebSocket(WS_URL);
+    console.log("Attempting to connect to:", WS_URL);
+    setConnectionStatus(`Connecting to: ${WS_URL}`);
 
-    ws.current.onopen = () => {
-      console.log("✅ Connected to Java Backend");
-    };
+    try {
+        ws.current = new WebSocket(WS_URL);
 
-    ws.current.onmessage = (event) => {
-      
-      messageCount.current += 1;
+        ws.current.onopen = () => {
+          console.log("✅ Connected to Java Backend");
+          setConnectionStatus("✅ Connected");
+        };
 
-      const parsed: OrderBookData = JSON.parse(event.data);
-      const now = Date.now();
+        ws.current.onmessage = (event) => {
+          messageCount.current += 1;
+          try {
+            const parsed: OrderBookData = JSON.parse(event.data);
+            const now = Date.now();
+            
+          
+            const internalLatency = now - parsed.serverTime; 
+            
+            setData(parsed);
+            setLatency(`${internalLatency}ms`);
+          } catch (err) {
+            console.error("Parse error:", err);
+          }
+        };
 
-      
-      const internalLatency = now - parsed.serverTime; 
+        ws.current.onclose = (event) => {
+            console.log("❌ Disconnected code:", event.code, "reason:", event.reason);
+            setConnectionStatus("❌ Disconnected (Check Console)");
+        };
+        
+        ws.current.onerror = (err) => {
+            console.error("WebSocket Error:", err);
+            setConnectionStatus("⚠️ Connection Error");
+        };
 
-      setData(parsed);
-      setLatency(`${internalLatency}ms`);
-    };
-
-    ws.current.onclose = () => console.log("❌ Disconnected");
+    } catch (e) {
+        setConnectionStatus("⚠️ Setup Error: " + e);
+    }
 
     return () => {
       ws.current?.close();
     };
-  }, []);
+  }, [WS_URL]);
 
- 
+  
   const renderRow = (price: number, qty: number, isBid: boolean) => {
     return (
       <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          fontFamily: '"Roboto Mono", "Courier New", monospace', 
-          fontSize: '14px',
-          padding: '4px 0', 
-          borderBottom: '1px solid #1e2329' 
+          display: 'flex', justifyContent: 'space-between', 
+          fontFamily: '"Roboto Mono", monospace', fontSize: '14px',
+          padding: '4px 0', borderBottom: '1px solid #1e2329' 
       }}>
         <span style={{ color: isBid ? '#0ecb81' : '#f6465d', fontWeight: 600 }}>
           {price.toFixed(2)}
         </span>
-        <span style={{ color: '#848e9c' }}>
-          {qty.toFixed(4)}
-        </span>
+        <span style={{ color: '#848e9c' }}>{qty.toFixed(4)}</span>
       </div>
     );
   };
 
   return (
     <div style={{ 
-        backgroundColor: '#0b0e11', 
-        color: '#eaecef', 
-        minHeight: '100vh', 
-        padding: '40px',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+        backgroundColor: '#0b0e11', color: '#eaecef', 
+        minHeight: '100vh', padding: '40px',
+        fontFamily: '-apple-system, sans-serif'
     }}>
       <div style={{ marginBottom: '30px' }}>
         <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '10px' }}>
           ⚡ HFT Execution Monitor
         </h1>
-        <p style={{ color: '#848e9c', fontSize: '14px' }}>
-          Live Feed: BTC/USDT • Protocol: WebSocket • Backend: Java Spring Boot
-        </p>
+        {/* DEBUG STATUS BAR */}
+        <div style={{ 
+            backgroundColor: '#1e2329', padding: '10px', 
+            borderRadius: '4px', border: '1px solid #474d57',
+            fontSize: '12px', color: '#f0b90b', fontFamily: 'monospace', overflowWrap: 'break-word'
+        }}>
+            STATUS: {connectionStatus} <br/>
+            TARGET URL: {WS_URL}
+        </div>
       </div>
       
       <div style={{ 
-          border: '1px solid #2b3139', 
-          backgroundColor: '#1e2329',
-          padding: '20px', 
-          borderRadius: '8px',
-          marginBottom: '40px',
-          display: 'flex',
-          gap: '60px'
+          border: '1px solid #2b3139', backgroundColor: '#1e2329',
+          padding: '20px', borderRadius: '8px', marginBottom: '40px',
+          display: 'flex', gap: '60px', flexWrap: 'wrap'
       }}>
-        {/* Metric 1: Latency */}
         <div>
-          <div style={{ color: '#848e9c', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Internal Processing Latency
-          </div>
-          <div style={{ color: '#f0b90b', fontSize: '32px', fontWeight: 'bold', fontFamily: 'monospace', marginTop: '5px' }}>
-            {latency}
-          </div>
-          <div style={{ color: '#4caf50', fontSize: '11px', marginTop: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <span style={{ width: '8px', height: '8px', backgroundColor: '#4caf50', borderRadius: '50%', display: 'inline-block' }}></span>
-            Optimal (Java → React)
-          </div>
+          <div style={{ color: '#848e9c', fontSize: '12px' }}>Internal Latency</div>
+          <div style={{ color: '#f0b90b', fontSize: '32px', fontWeight: 'bold' }}>{latency}</div>
         </div>
-
-        {/* Metric 2: Throughput (Dynamic) */}
         <div>
-          <div style={{ color: '#848e9c', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            System Throughput
-          </div>
-          <div style={{ color: '#fff', fontSize: '32px', fontWeight: 'bold', fontFamily: 'monospace', marginTop: '5px' }}>
-            {throughput} Hz
-          </div>
-          <div style={{ color: '#848e9c', fontSize: '11px', marginTop: '5px' }}>
-            Updates per second
-          </div>
+          <div style={{ color: '#848e9c', fontSize: '12px' }}>Throughput</div>
+          <div style={{ color: '#fff', fontSize: '32px', fontWeight: 'bold' }}>{throughput} Hz</div>
         </div>
       </div>
 
-      {/* Order Book Grid */}
-      <div style={{ display: 'flex', gap: '40px' }}>
-        
-        {/* BIDS Column */}
+      <div style={{ display: 'flex', gap: '40px', flexDirection: 'row' }}>
         <div style={{ flex: 1 }}>
-          <div style={{ 
-            display: 'flex', justifyContent: 'space-between', 
-            color: '#848e9c', fontSize: '12px', paddingBottom: '10px',
-            borderBottom: '1px solid #2b3139', marginBottom: '10px'
-          }}>
-            <span>BID PRICE (USD)</span>
-            <span>QTY (BTC)</span>
-          </div>
-          <div>
-            {data?.bids.map(([price, qty], index) => (
-              <React.Fragment key={`bid-${index}`}>
-                {renderRow(price, qty, true)}
-              </React.Fragment>
-            ))}
-          </div>
+          <h4 style={{color: '#0ecb81', borderBottom: '1px solid #2b3139', paddingBottom: '10px'}}>BIDS</h4>
+          {data?.bids.map((row, i) => (
+             <React.Fragment key={i}>{renderRow(row[0], row[1], true)}</React.Fragment>
+          ))}
         </div>
-
-        {/* ASKS Column */}
         <div style={{ flex: 1 }}>
-          <div style={{ 
-            display: 'flex', justifyContent: 'space-between', 
-            color: '#848e9c', fontSize: '12px', paddingBottom: '10px',
-            borderBottom: '1px solid #2b3139', marginBottom: '10px'
-          }}>
-            <span>ASK PRICE (USD)</span>
-            <span>QTY (BTC)</span>
-          </div>
-          <div>
-            {data?.asks.map(([price, qty], index) => (
-              <React.Fragment key={`ask-${index}`}>
-                {renderRow(price, qty, false)}
-              </React.Fragment>
-            ))}
-          </div>
+          <h4 style={{color: '#f6465d', borderBottom: '1px solid #2b3139', paddingBottom: '10px'}}>ASKS</h4>
+          {data?.asks.map((row, i) => (
+             <React.Fragment key={i}>{renderRow(row[0], row[1], false)}</React.Fragment>
+          ))}
         </div>
-
       </div>
     </div>
   );
