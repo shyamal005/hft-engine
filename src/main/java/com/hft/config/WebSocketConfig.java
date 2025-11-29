@@ -16,6 +16,6 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(uiBridge, "/stream")
-                .setAllowedOrigins("*"); // <--- THIS IS MANDATORY
+                .setAllowedOrigins("*"); 
     }
 }
