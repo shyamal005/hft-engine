@@ -18,7 +18,7 @@ public class BinanceConnector implements CommandLineRunner, WebSocket.Listener {
     private final UIBridge uiBridge;
     private final CountDownLatch latch = new CountDownLatch(1);
     
-    // Buffer to handle fragmented messages (Large JSON payloads)
+    
     private final StringBuilder messageBuffer = new StringBuilder();
 
     public BinanceConnector(OrderBook orderBook, UIBridge uiBridge) {
@@ -31,38 +31,38 @@ public class BinanceConnector implements CommandLineRunner, WebSocket.Listener {
         try {
             HttpClient client = HttpClient.newHttpClient();
             
-            // Production Stream
+            
             String url = "wss://stream.binance.com:9443/ws/btcusdt@depth@100ms"; 
             
-            System.out.println("🔄 Connecting to Binance Stream: " + url);
+            System.out.println(" Connecting to Binance Stream: " + url);
 
             client.newWebSocketBuilder()
                   .buildAsync(URI.create(url), this)
                   .join(); 
                   
-            System.out.println("✅ Connected to Production Stream Successfully");
+            System.out.println(" Connected to Production Stream Successfully");
             
             latch.await();
             
         } catch (Exception e) {
-            System.err.println("❌ Failed to connect: " + e.getMessage());
+            System.err.println("Failed to connect: " + e.getMessage());
         }
     }
 
     @Override
     public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-        // 1. Append incoming chunk to buffer
+      
         messageBuffer.append(data);
 
-        // 2. If this is NOT the last chunk, request more and wait
+     
         if (!last) {
             webSocket.request(1);
             return null;
         }
 
-        // 3. Complete message received -> Process it
+       
         String fullMessage = messageBuffer.toString();
-        // Clear buffer for next message immediately
+        
         messageBuffer.setLength(0);
 
         try {
@@ -75,7 +75,7 @@ public class BinanceConnector implements CommandLineRunner, WebSocket.Listener {
 
             long eventTime = json.getLong("E");
 
-            // --- ⏱️ HFT BENCHMARK ---
+            
             long startTime = System.nanoTime();
 
             processUpdates(json.getJSONArray("b"), true);
@@ -83,11 +83,11 @@ public class BinanceConnector implements CommandLineRunner, WebSocket.Listener {
 
             long duration = System.nanoTime() - startTime;
             
-            // Log latency spikes (>100µs)
+           
             if (duration > 100_000) { 
-                 System.out.println("⚠️ High Latency Tick: " + (duration / 1000) + " µs");
+                 System.out.println(" High Latency Tick: " + (duration / 1000) + " µs");
             }
-            // --- BENCHMARK END ---
+            
 
             uiBridge.broadcast(eventTime);
 
