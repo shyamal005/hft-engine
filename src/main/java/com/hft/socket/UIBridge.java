@@ -10,7 +10,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 @Component
 public class UIBridge extends TextWebSocketHandler {
-    // Thread-safe list of connected UI clients
+   
     private final CopyOnWriteArrayList<WebSocketSession> sessions = new CopyOnWriteArrayList<>();
     private final OrderBook orderBook;
 
