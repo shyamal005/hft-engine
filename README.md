@@ -4,6 +4,8 @@
   
 https://github.com/user-attachments/assets/005e9683-2803-44af-9a15-cf8bff9a0142
 
+Live Demo: https://hft-engine-frontend.onrender.com
+
 A high-performance market-data adapter and real-time visualization engine that ingests live crypto order-book updates, processes them in an in-memory Java backend, and streams them to a React dashboard with **sub-15ms internal latency**.
 
 This project mimics the architecture used inside proprietary trading firms for low-latency market data processing.
