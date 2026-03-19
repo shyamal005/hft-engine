@@ -1,6 +1,14 @@
 
 # ⚡ High-Frequency Trading (HFT) Low-Latency Execution Monitor
 
+
+⚠️ Deployment Limitations (Free Tier)
+Please note that the live demo is hosted on free-tier infrastructure. You may observe the following behaviors:
+
+  1. Cold Starts (1-5 Minute Initial Load): The backend container spins down after 15 minutes of inactivity. When you first open the application, it may take a few minutes for the Java Spring Boot engine to boot up and         establish the WebSocket tunnel.
+
+  2. Artificial High Latency (Clock Drift): You may see the "Internal Latency" metric display high numbers (e.g., 1000ms+). The app is actually processing in microseconds, but because free-tier cloud servers have poorly        synchronized system clocks (NTP), the timestamp math between the server and your local browser drifts. In a true HFT production environment, this is solved using Precision Time Protocol (PTP).
+
   
 https://github.com/user-attachments/assets/005e9683-2803-44af-9a15-cf8bff9a0142
 
